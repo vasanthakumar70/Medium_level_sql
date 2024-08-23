@@ -1,1 +1,3 @@
-# medium_level_SQLL
+# medium_level_SQL 
+
+SQL questions by Ankit Bansal
