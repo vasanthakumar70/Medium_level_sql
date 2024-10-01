@@ -673,3 +673,290 @@ select
     ,max(case when ascn=1 then city end) as mix_pupulation
  from cte
  group by state
+
+
+
+
+
+--19 . extract domain name
+
+ CREATE TABLE your_table_name (
+    id INT PRIMARY KEY,
+    name VARCHAR(100),
+    email VARCHAR(100)
+);
+
+ INSERT INTO your_table_name (id, name, email) VALUES
+(1, 'John Doe', 'john.doe@example.com'),
+(2, 'Jane Smith', 'jane.smith@company.com'),
+(4, 'Alice Johnson', 'alice.johnson@business.org'),
+(5, 'Robert Brown', 'robert.brown@enterprise.net'),
+(6, 'Emily Davis', 'emily.davis@startup.io'),
+(7, 'Michael Wilson', 'michael.wilson@web.co'),
+(8, 'Sophia Taylor', 'sophia.taylor@tech.dev'),
+(9, 'David Anderson', 'david.anderson@service.us');
+
+
+
+select *,CHARINDEX('@',email,0) ,right(email,len(email)-CHARINDEX('@',email,0) )  from your_table_name
+
+
+
+
+--20 . city not have any return 
+
+create table namaste_orders
+(
+order_id int,
+city varchar(10),
+sales int
+)
+
+create table namaste_returns
+(
+order_id int,
+return_reason varchar(20),
+)
+
+insert into namaste_orders
+values(1, 'Mysore' , 100),(2, 'Mysore' , 200),(3, 'Bangalore' , 250),(4, 'Bangalore' , 150)
+,(5, 'Mumbai' , 300),(6, 'Mumbai' , 500),(7, 'Mumbai' , 800)
+;
+insert into namaste_returns values
+(3,'wrong item'),(6,'bad quality'),(7,'wrong item');
+
+
+
+select * from namaste_orders
+WHERE CITY NOT IN (
+select CITY from namaste_returns R
+LEFT JOIN namaste_orders O ON R.order_id=O.order_id
+GROUP BY CITY)
+
+
+
+
+-- 21 .Write a sql query to find users who purchased different products on different dates
+-- -- ie : products purchased on any given day are not repeated on any other day
+
+with cte as(
+SELECT *,
+    FIRST_VALUE(purchasedate)OVER(PARTITION BY USERID,PRODUCTID ORDER BY purchasedate)  as firstPurchase
+FROM purchase_history)
+select 
+    userid
+    ,count(PRODUCTID) as productcount
+    ,count(distinct PRODUCTID) as DproductCount
+    ,count(distinct purchasedate) as purchasedate
+    ,sum(case when purchasedate=firstPurchase then 1 else 0 end) as flagcount
+ from cte
+ group by userid
+ having 1=1
+   --- count(distinct PRODUCTID)=sum(case when purchasedate=firstPurchase then 1 else 0 end) 
+    and count(distinct purchasedate)>1
+    and count(distinct PRODUCTID)=count(PRODUCTID)
+
+
+
+
+-- 22. Write SQL to find all couples of trade for same stock that happened in the range of 10 seconds
+-- and having price difference by more than 10 %.
+-- Output result should also list the percentage of price difference between the 2 trade
+
+Create Table Trade_tbl(
+TRADE_ID varchar(20),
+Trade_Timestamp time,
+Trade_Stock varchar(20),
+Quantity int,
+Price Float
+)
+
+Insert into Trade_tbl Values('TRADE1','10:01:05','ITJunction4All',100,20)
+Insert into Trade_tbl Values('TRADE2','10:01:06','ITJunction4All',20,15)
+Insert into Trade_tbl Values('TRADE3','10:01:08','ITJunction4All',150,30)
+Insert into Trade_tbl Values('TRADE4','10:01:09','ITJunction4All',300,32)
+Insert into Trade_tbl Values('TRADE5','10:10:00','ITJunction4All',-100,19)
+Insert into Trade_tbl Values('TRADE6','10:10:01','ITJunction4All',-300,19)
+
+
+
+
+select  
+    t1.TRADE_ID
+    ,t2.trade_id
+    ,t1.PRice 
+    ,t2.price
+    --,DATEDIFF(SECOND,t1.Trade_Timestamp,t2.Trade_Timestamp)
+    ,abs(t1.price - t2.price)*100/t1.price as PercentDiff
+from Trade_tbl T1
+join Trade_tbl T2 on DATEDIFF(SECOND,t1.Trade_Timestamp,t2.Trade_Timestamp) between 1 and 10
+where abs(t1.price - t2.price)*100/t1.price>10
+order by 1,2
+
+    
+--23. problem statement : we have artable which stores data of multiple sections. every section has 3 numbers
+-- we have to find top 4 numbers from any 2 sections(2 numbers each) whose addition should be maximum
+-- so in this case we will choose section b where we have 19(10+9) then we need to choose either C or D
+-- becaue both has sum of 18 but in D we have 10 which is big from 9 so we will give priority to D
+
+create table section_data
+(
+section varchar(5),
+number integer
+)
+insert into section_data
+values ('A',5),('A',7),('A',10) ,('B',7),('B',9),('B',10) ,('C',9),('C',7),('C',9) ,('D',10),('D',3),('D',8);
+
+
+with cte as(
+select 
+    *
+    ,row_number()over(partition by section order by number desc) rn
+from section_data)
+,cte2 as(
+select top 2
+    section
+    ,sum(number) as Nsum
+    ,max(number) as Nmax
+from cte 
+where rn<=2
+group by section
+order by 2 desc,3 desc
+)
+select 
+    section
+    ,number
+from cte 
+where 
+    section in (select section from cte2)
+    and rn<=2
+
+
+-- 24 .Q1> Write an sql query that gives the below output
+-- Output: Summary at segment level
+-- User_who_booked_flight_in_apr2022
+-- +---------+-------------------+--------------------------------+
+-- | Segment | Total_user_count   | User_who_booked_flight_in_apr2022 |
+-- +---------+-------------------+--------------------------------+
+-- | s1      | 3                 | 2                              |
+-- | s2      | 2                 | 2                              |
+-- | s3      | 5                 | 1                              |
+-- +---------+-------------------+--------------------------------+
+
+-- Q2> Write a query to identify users whose first booking was a hotel booking
+-- Q3> write a query to calculate the days between first and last booking of each user
+-- Q4> write a query to count the number of flight and hotel bookings in each of the user segments for the year 2022.
+
+
+CREATE TABLE booking_table(
+   Booking_id       VARCHAR(3) NOT NULL 
+  ,Booking_date     date NOT NULL
+  ,User_id          VARCHAR(2) NOT NULL
+  ,Line_of_business VARCHAR(6) NOT NULL
+);
+INSERT INTO booking_table(Booking_id,Booking_date,User_id,Line_of_business) VALUES ('b1','2022-03-23','u1','Flight');
+INSERT INTO booking_table(Booking_id,Booking_date,User_id,Line_of_business) VALUES ('b2','2022-03-27','u2','Flight');
+INSERT INTO booking_table(Booking_id,Booking_date,User_id,Line_of_business) VALUES ('b3','2022-03-28','u1','Hotel');
+INSERT INTO booking_table(Booking_id,Booking_date,User_id,Line_of_business) VALUES ('b4','2022-03-31','u4','Flight');
+INSERT INTO booking_table(Booking_id,Booking_date,User_id,Line_of_business) VALUES ('b5','2022-04-02','u1','Hotel');
+INSERT INTO booking_table(Booking_id,Booking_date,User_id,Line_of_business) VALUES ('b6','2022-04-02','u2','Flight');
+INSERT INTO booking_table(Booking_id,Booking_date,User_id,Line_of_business) VALUES ('b7','2022-04-06','u5','Flight');
+INSERT INTO booking_table(Booking_id,Booking_date,User_id,Line_of_business) VALUES ('b8','2022-04-06','u6','Hotel');
+INSERT INTO booking_table(Booking_id,Booking_date,User_id,Line_of_business) VALUES ('b9','2022-04-06','u2','Flight');
+INSERT INTO booking_table(Booking_id,Booking_date,User_id,Line_of_business) VALUES ('b10','2022-04-10','u1','Flight');
+INSERT INTO booking_table(Booking_id,Booking_date,User_id,Line_of_business) VALUES ('b11','2022-04-12','u4','Flight');
+INSERT INTO booking_table(Booking_id,Booking_date,User_id,Line_of_business) VALUES ('b12','2022-04-16','u1','Flight');
+INSERT INTO booking_table(Booking_id,Booking_date,User_id,Line_of_business) VALUES ('b13','2022-04-19','u2','Flight');
+INSERT INTO booking_table(Booking_id,Booking_date,User_id,Line_of_business) VALUES ('b14','2022-04-20','u5','Hotel');
+INSERT INTO booking_table(Booking_id,Booking_date,User_id,Line_of_business) VALUES ('b15','2022-04-22','u6','Flight');
+INSERT INTO booking_table(Booking_id,Booking_date,User_id,Line_of_business) VALUES ('b16','2022-04-26','u4','Hotel');
+INSERT INTO booking_table(Booking_id,Booking_date,User_id,Line_of_business) VALUES ('b17','2022-04-28','u2','Hotel');
+INSERT INTO booking_table(Booking_id,Booking_date,User_id,Line_of_business) VALUES ('b18','2022-04-30','u1','Hotel');
+INSERT INTO booking_table(Booking_id,Booking_date,User_id,Line_of_business) VALUES ('b19','2022-05-04','u4','Hotel');
+INSERT INTO booking_table(Booking_id,Booking_date,User_id,Line_of_business) VALUES ('b20','2022-05-06','u1','Flight');
+;
+CREATE TABLE user_table(
+   User_id VARCHAR(3) NOT NULL
+  ,Segment VARCHAR(2) NOT NULL
+);
+INSERT INTO user_table(User_id,Segment) VALUES ('u1','s1');
+INSERT INTO user_table(User_id,Segment) VALUES ('u2','s1');
+INSERT INTO user_table(User_id,Segment) VALUES ('u3','s1');
+INSERT INTO user_table(User_id,Segment) VALUES ('u4','s2');
+INSERT INTO user_table(User_id,Segment) VALUES ('u5','s2');
+INSERT INTO user_table(User_id,Segment) VALUES ('u6','s3');
+INSERT INTO user_table(User_id,Segment) VALUES ('u7','s3');
+INSERT INTO user_table(User_id,Segment) VALUES ('u8','s3');
+INSERT INTO user_table(User_id,Segment) VALUES ('u9','s3');
+INSERT INTO user_table(User_id,Segment) VALUES ('u10','s3');
+
+
+-- Q1
+SELECT 
+    segment
+    ,count(distinct u.user_id)
+    ,count(distinct b.user_id)
+FROM USER_TABLE U
+left join booking_table b on MONTH(booking_date)=4 and year(booking_date)=2022 and b.user_id=u.user_id and line_of_business='flight'
+GROUP by segment
+
+
+--Q2
+with cte as(
+select *
+    ,ROW_NUMBER()over(partition by user_id order by booking_date) as rn
+ from booking_table)
+ select *
+  from cte 
+  where rn=1 and line_of_business='hotel'
+
+--Q3
+select 
+    USER_ID
+    ,min(booking_date) as firstdate
+    ,max(booking_date) as lastdate
+    ,DATEDIFF(day,min(booking_date),max(booking_date))
+from booking_table
+group by user_id
+
+--Q4
+select 
+    USER_ID
+    ,count(case when line_of_business='flight' then 1 else 0 end )as FlightCount
+    ,count(case when line_of_business='hotel' then 1 else 0 end) as FlightCount
+from booking_table
+where year(booking_date)=2022
+group by user_id
+
+
+create table emp(
+emp_id int,
+emp_name varchar(20),
+department_id int,
+salary int,
+manager_id int,
+emp_age int);
+
+insert into emp
+values
+(1, 'Ankit', 100,10000, 4, 39);
+insert into emp
+values (2, 'Mohit', 100, 15000, 5, 48);
+insert into emp
+values (3, 'Vikas', 100, 10000,4,37);
+insert into emp
+values (4, 'Rohit', 100, 5000, 2, 16);
+insert into emp
+values (5, 'Mudit', 200, 12000, 6,55);
+insert into emp
+values (6, 'Agam', 200, 12000,2, 14);
+insert into emp
+values (7, 'Sanjay', 200, 9000, 2,13);
+insert into emp
+values (8, 'Ashish', 200,5000,2,12);
+insert into emp
+values (9, 'Mukesh',300,6000,6,51);
+insert into emp
+values (10, 'Rakesh',300,7000,6,50);
+
+
